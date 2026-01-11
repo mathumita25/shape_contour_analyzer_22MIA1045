@@ -37,19 +37,54 @@ def classify(approx, cnt):
         return "Triangle"
 
     if sides == 4:
-        x,y,w,h = cv2.boundingRect(approx)
-        ar = w / float(h)
-
-        hull = cv2.convexHull(cnt)
-        solidity = area / cv2.contourArea(hull)
-
-        if 0.95 < ar < 1.05:
+        pts = approx.reshape(4,2)
+    
+        # Compute side lengths
+        def dist(a,b): 
+            return np.linalg.norm(a-b)
+    
+        d1 = dist(pts[0], pts[1])
+        d2 = dist(pts[1], pts[2])
+        d3 = dist(pts[2], pts[3])
+        d4 = dist(pts[3], pts[0])
+    
+        sides_equal = abs(d1-d2)<10 and abs(d2-d3)<10 and abs(d3-d4)<10
+    
+        # Compute angles
+        def angle(a,b,c):
+            ba = a - b
+            bc = c - b
+            cosang = np.dot(ba,bc)/(np.linalg.norm(ba)*np.linalg.norm(bc))
+            return np.degrees(np.arccos(cosang))
+    
+        a1 = angle(pts[0],pts[1],pts[2])
+        a2 = angle(pts[1],pts[2],pts[3])
+        a3 = angle(pts[2],pts[3],pts[0])
+        a4 = angle(pts[3],pts[0],pts[1])
+    
+        right_angles = all(80 < a < 100 for a in [a1,a2,a3,a4])
+    
+        # Check parallel sides using slopes
+        def slope(p1,p2):
+            return (p2[1]-p1[1])/(p2[0]-p1[0]+1e-5)
+    
+        s1 = slope(pts[0],pts[1])
+        s2 = slope(pts[2],pts[3])
+        s3 = slope(pts[1],pts[2])
+        s4 = slope(pts[3],pts[0])
+    
+        parallel1 = abs(s1-s2) < 0.2
+        parallel2 = abs(s3-s4) < 0.2
+    
+        if sides_equal and right_angles:
             return "Square"
-        if solidity < 0.9:
-            return "Trapezium"
-        if ar > 1.2 or ar < 0.8:
+        if right_angles:
             return "Rectangle"
-        return "Parallelogram"
+        if parallel1 and parallel2:
+            return "Parallelogram"
+        if parallel1 or parallel2:
+            return "Trapezium"
+    
 
     if sides == 5:
         return "Pentagon"
